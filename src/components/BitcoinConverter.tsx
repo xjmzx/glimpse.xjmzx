@@ -14,12 +14,24 @@ interface CurrencyRate {
 
 type Direction = 'up' | 'down' | null;
 
-const FavIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4" shapeRendering="crispEdges" className={className}>
-    <rect x="0" y="0" width="2" height="2" fill="#0d1117"/>
-    <rect x="2" y="0" width="2" height="2" fill="#34d399"/>
-    <rect x="0" y="2" width="2" height="2" fill="#a78bfa"/>
-    <rect x="2" y="2" width="2" height="2" fill="#131d2a"/>
+const FizxLogo = ({ className }: { className?: string }) => (
+  <svg width="16" height="16" viewBox="0 0 4 4" fill="none" xmlns="http://www.w3.org/2000/svg" className={className ?? 'shrink-0'} style={{ imageRendering: 'pixelated' }}>
+    <rect x="0" y="0" width="1" height="1" fill="#34d399"/>
+    <rect x="1" y="0" width="1" height="1" fill="#a78bfa"/>
+    <rect x="2" y="0" width="1" height="1" fill="#34d399"/>
+    <rect x="3" y="0" width="1" height="1" fill="#a78bfa"/>
+    <rect x="0" y="1" width="1" height="1" fill="#a78bfa"/>
+    <rect x="1" y="1" width="1" height="1" fill="#34d399"/>
+    <rect x="2" y="1" width="1" height="1" fill="#a78bfa"/>
+    <rect x="3" y="1" width="1" height="1" fill="#34d399"/>
+    <rect x="0" y="2" width="1" height="1" fill="#34d399"/>
+    <rect x="1" y="2" width="1" height="1" fill="#a78bfa"/>
+    <rect x="2" y="2" width="1" height="1" fill="#34d399"/>
+    <rect x="3" y="2" width="1" height="1" fill="#a78bfa"/>
+    <rect x="0" y="3" width="1" height="1" fill="#a78bfa"/>
+    <rect x="1" y="3" width="1" height="1" fill="#34d399"/>
+    <rect x="2" y="3" width="1" height="1" fill="#a78bfa"/>
+    <rect x="3" y="3" width="1" height="1" fill="#34d399"/>
   </svg>
 );
 
@@ -138,8 +150,9 @@ const BitcoinConverter = () => {
 
       {/* Nav */}
       <nav className="border-b border-border px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <a href="https://fizx.uk" className="font-mono text-sm">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <a href="https://fizx.uk" className="flex items-center gap-2 font-mono text-sm" aria-label="fizx.uk">
+            <FizxLogo />
             <span className="bg-gradient-to-r from-[#34d399] via-[#a78bfa] to-[#34d399] bg-clip-text text-transparent font-bold">fizx</span>
             <span className="text-muted-foreground">.uk</span>
             <span className="text-muted-foreground/40 ml-1">/ glimpse</span>
@@ -147,14 +160,14 @@ const BitcoinConverter = () => {
         </div>
       </nav>
 
-      <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-12">
+      <div className="flex-1 max-w-5xl mx-auto w-full px-6 py-12">
 
         {/* Header */}
         <div className="mb-10">
 
           {/* Title row: favicon — title — [21 squares] — refresh icon */}
           <div className="flex items-center gap-3 mb-3">
-            <FavIcon className="h-9 w-9 shrink-0" />
+            <FizxLogo className="h-9 w-9 shrink-0" />
 
             <h1 className="text-3xl font-bold tracking-tight shrink-0">
               <span className="bg-gradient-to-r from-[#34d399] via-[#a78bfa] to-[#34d399] bg-clip-text text-transparent">
@@ -257,7 +270,7 @@ const BitcoinConverter = () => {
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-5">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-y-2 text-xs text-muted-foreground font-mono">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-y-2 text-xs text-muted-foreground font-mono">
           <span>glimpse.fizx.uk · CoinGecko API · 21s refresh</span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {[
@@ -270,6 +283,7 @@ const BitcoinConverter = () => {
             ].map(([href, label]) => (
               <a key={href} href={href} className="hover:text-primary transition-colors">{label}</a>
             ))}
+            <span className="text-primary/60 ml-1">✦ built with claude</span>
           </div>
         </div>
       </footer>
