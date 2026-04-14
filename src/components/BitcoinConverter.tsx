@@ -160,7 +160,6 @@ const BitcoinConverter = () => {
               <span className="bg-gradient-to-r from-[#34d399] via-[#a78bfa] to-[#34d399] bg-clip-text text-transparent">
                 glimpse
               </span>
-              <span className="text-foreground">.fizx.uk</span>
             </h1>
 
             {/* 21-square countdown strip */}
