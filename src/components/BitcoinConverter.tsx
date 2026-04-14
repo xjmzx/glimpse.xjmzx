@@ -38,7 +38,6 @@ const FizxLogo = ({ className }: { className?: string }) => (
 const REFRESH_MS = 21000;
 const SQUARE_COUNT = 21;
 
-// Interpolate between emerald and purple across 21 positions: emerald → purple → emerald
 function lerpHex(
   a: [number, number, number],
   b: [number, number, number],
@@ -53,7 +52,6 @@ function lerpHex(
 const EMERALD: [number, number, number] = [52, 211, 153];
 const PURPLE:  [number, number, number] = [167, 139, 250];
 
-// Each square gets its own lit color; unlit is always very dark
 const SQUARE_COLORS = Array.from({ length: SQUARE_COUNT }, (_, i) => {
   const t = i < 10 ? i / 10 : (SQUARE_COUNT - 1 - i) / 10;
   return lerpHex(EMERALD, PURPLE, t);
@@ -71,6 +69,12 @@ const BitcoinConverter = () => {
   const [tick, setTick] = useState(0);
   const prevRates = useRef<Record<string, number>>({});
 
+  // bitview state — USD only
+  const [bitviewSats, setBitviewSats] = useState<number | null>(null);
+  const [bitviewFetchedAt, setBitviewFetchedAt] = useState<Date | null>(null);
+  const [bitviewError, setBitviewError] = useState<string | null>(null);
+  const [bitviewRefreshed, setBitviewRefreshed] = useState(false);
+
   const currencies = [
     { symbol: 'USD', name: 'US Dollar', flag: '🇺🇸' },
     { symbol: 'EUR', name: 'Euro', flag: '🇪🇺' },
@@ -82,7 +86,7 @@ const BitcoinConverter = () => {
     { symbol: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' },
   ];
 
-  const fetchBitcoinRates = async () => {
+  const fetchCoinGecko = async () => {
     try {
       setError(null);
       const response = await axios.get(
@@ -96,7 +100,6 @@ const BitcoinConverter = () => {
         return { symbol: currency.symbol, name: currency.name, rate: price || 0, satoshisPerUnit, flag: currency.flag };
       });
 
-      // Detect per-card direction changes
       const directions: Record<string, Direction> = {};
       newRates.forEach(r => {
         const prev = prevRates.current[r.symbol];
@@ -117,16 +120,39 @@ const BitcoinConverter = () => {
         setTimeout(() => setChanged({}), 1800);
       }
     } catch (err) {
-      console.error('Error fetching Bitcoin rates:', err);
-      setError('Could not reach CoinGecko — will retry shortly.');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching CoinGecko rates:', err);
+      setError('CoinGecko unavailable');
     }
   };
 
+  const fetchBitview = async () => {
+    try {
+      setBitviewError(null);
+      // bitview returns { time: unixTs, USD: btcPriceInUsd }
+      const response = await axios.get('https://bitview.space/api/v1/prices');
+      const usdPrice = response.data?.USD;
+      if (typeof usdPrice === 'number' && usdPrice > 0) {
+        const sats = Math.round(100_000_000 / usdPrice);
+        setBitviewSats(sats);
+        setBitviewFetchedAt(new Date());
+        setBitviewRefreshed(true);
+        setTimeout(() => setBitviewRefreshed(false), 2000);
+      }
+    } catch (err) {
+      console.error('Error fetching bitview:', err);
+      setBitviewError('bitview unavailable');
+    }
+  };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    await Promise.allSettled([fetchCoinGecko(), fetchBitview()]);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    fetchBitcoinRates();
-    const fetchInterval = setInterval(fetchBitcoinRates, REFRESH_MS);
+    fetchAll();
+    const fetchInterval = setInterval(fetchAll, REFRESH_MS);
     const tickInterval = setInterval(() => {
       setTick(t => (t < SQUARE_COUNT ? t + 1 : 0));
     }, 1000);
@@ -135,6 +161,12 @@ const BitcoinConverter = () => {
       clearInterval(tickInterval);
     };
   }, []);
+
+  // Which source is more recently fetched?
+  const cgTime = lastUpdated?.getTime() ?? 0;
+  const bvTime = bitviewFetchedAt?.getTime() ?? 0;
+  const activeSource: 'coingecko' | 'bitview' = cgTime >= bvTime ? 'coingecko' : 'bitview';
+  const mostRecentAt = cgTime >= bvTime ? lastUpdated : bitviewFetchedAt;
 
   const formatNumber = (num: number) => new Intl.NumberFormat('en-US').format(num);
 
@@ -165,30 +197,17 @@ const BitcoinConverter = () => {
         {/* Header */}
         <div className="mb-10">
 
-          {/* Title row: favicon — title — [21 squares] — refresh icon */}
-          <div className="flex items-center gap-3 mb-3">
+          {/* Title row */}
+          <div className="flex items-center gap-3 mb-2">
             <FizxLogo className="h-9 w-9 shrink-0" />
-
-            <h1 className="text-3xl font-bold tracking-tight shrink-0">
+            <h1 className="text-3xl font-bold tracking-tight">
               <span className="bg-gradient-to-r from-[#34d399] via-[#a78bfa] to-[#34d399] bg-clip-text text-transparent">
                 glimpse
               </span>
             </h1>
-
-            {/* 21-square countdown strip */}
-            <div className="flex items-center gap-[3px] flex-1 min-w-0 px-2">
-              {SQUARE_COLORS.map((litColor, i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-[10px] transition-colors duration-300"
-                  style={{ backgroundColor: i < tick ? litColor : SQUARE_DIM }}
-                />
-              ))}
-            </div>
-
-            {/* Refresh icon only */}
+            <div className="flex-1" />
             <button
-              onClick={fetchBitcoinRates}
+              onClick={fetchAll}
               disabled={loading}
               className="shrink-0 p-2 hover:bg-primary/10 disabled:opacity-40 text-primary transition-colors"
               aria-label="Refresh rates"
@@ -197,24 +216,55 @@ const BitcoinConverter = () => {
             </button>
           </div>
 
+          {/* 21-square countdown strip */}
+          <div className="flex items-center gap-[3px] mb-3">
+            {SQUARE_COLORS.map((litColor, i) => (
+              <div
+                key={i}
+                className="flex-1 h-[10px] transition-colors duration-300"
+                style={{ backgroundColor: i < tick ? litColor : SQUARE_DIM }}
+              />
+            ))}
+          </div>
+
           <p className="text-muted-foreground text-sm">
             Real-time Bitcoin conversion rates in satoshis per currency unit
           </p>
-          <div className="flex items-center gap-3 mt-1">
+
+          {/* Source badges + timestamp */}
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            {mostRecentAt && (
+              <span className="text-muted-foreground/50 text-xs font-mono">
+                Updated {mostRecentAt.toLocaleTimeString()}
+              </span>
+            )}
+
+            {/* CoinGecko badge */}
             {error ? (
               <span className="text-xs font-mono text-amber-500/70">⚠ {error}</span>
             ) : lastUpdated ? (
-              <>
-                <span className="text-muted-foreground/50 text-xs font-mono">
-                  Updated {lastUpdated.toLocaleTimeString()}
-                </span>
-                <span className={`text-xs font-mono px-1.5 py-0.5 border transition-all duration-500
-                  ${justRefreshed
-                    ? 'text-primary border-primary/50 bg-primary/10'
-                    : 'text-muted-foreground/40 border-border'}`}>
-                  CoinGecko
-                </span>
-              </>
+              <span className={`text-xs font-mono px-1.5 py-0.5 border transition-all duration-500
+                ${justRefreshed
+                  ? 'text-primary border-primary/50 bg-primary/10'
+                  : activeSource === 'coingecko'
+                  ? 'text-primary/60 border-primary/20'
+                  : 'text-muted-foreground/40 border-border'}`}>
+                CoinGecko
+              </span>
+            ) : null}
+
+            {/* bitview badge */}
+            {bitviewError ? (
+              <span className="text-xs font-mono text-amber-500/40">⚠ {bitviewError}</span>
+            ) : bitviewFetchedAt ? (
+              <span className={`text-xs font-mono px-1.5 py-0.5 border transition-all duration-500
+                ${bitviewRefreshed
+                  ? 'text-accent border-accent/50 bg-accent/10'
+                  : activeSource === 'bitview'
+                  ? 'text-accent/60 border-accent/20'
+                  : 'text-muted-foreground/40 border-border'}`}>
+                bitview
+              </span>
             ) : null}
           </div>
         </div>
@@ -223,6 +273,9 @@ const BitcoinConverter = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {rates.map((rate) => {
             const dir = changed[rate.symbol] ?? null;
+            const isUsd = rate.symbol === 'USD';
+            const hasBothUsd = isUsd && bitviewSats !== null && rate.satoshisPerUnit > 0;
+
             return (
               <Card
                 key={rate.symbol}
@@ -259,11 +312,55 @@ const BitcoinConverter = () => {
                       {rate.satoshisPerUnit > 0 ? formatNumber(rate.satoshisPerUnit) : 'Loading...'}
                       <span className="text-sm text-muted-foreground ml-1">sats</span>
                     </p>
+
+                    {/* bitview comparison for USD */}
+                    {hasBothUsd && (
+                      <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between">
+                        <span className={`text-[10px] font-mono px-1 border transition-colors duration-500
+                          ${bitviewRefreshed ? 'text-accent border-accent/40' : 'text-muted-foreground/40 border-border/40'}`}>
+                          bitview
+                        </span>
+                        <span className="text-[11px] font-mono text-muted-foreground/60">
+                          {formatNumber(bitviewSats!)} sats
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             );
           })}
+
+          {/* Fallback USD card when CoinGecko is down but bitview has data */}
+          {error && bitviewSats !== null && rates.length === 0 && (
+            <Card className="bg-card border border-border rounded-none hover:border-primary/40 transition-all duration-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-card-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🇺🇸</span>
+                    <span className="font-mono font-bold">USD</span>
+                  </div>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground/30" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-muted-foreground text-sm">US Dollar</p>
+                  <p className="text-muted-foreground/40 text-sm font-mono">CoinGecko unavailable</p>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <p className="text-muted-foreground text-xs font-mono uppercase tracking-wider mb-1">
+                    sats per 1 USD
+                  </p>
+                  <p className="text-xl font-bold font-mono text-accent">
+                    {formatNumber(bitviewSats)}
+                    <span className="text-sm text-muted-foreground ml-1">sats</span>
+                  </p>
+                  <span className="text-[10px] font-mono text-accent/60">via bitview</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
       </div>
@@ -271,7 +368,7 @@ const BitcoinConverter = () => {
       {/* Footer */}
       <footer className="border-t border-border px-6 py-5">
         <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-y-2 text-xs text-muted-foreground font-mono">
-          <span>glimpse.fizx.uk · CoinGecko API · 21s refresh</span>
+          <span>glimpse.fizx.uk · CoinGecko + bitview · 21s refresh</span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {[
               ['https://fizx.uk',         'fizx.uk'],
